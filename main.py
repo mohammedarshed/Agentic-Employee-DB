@@ -1,4 +1,7 @@
+import uuid
+
 from app.database.connection import test_connection
+from app.agent.memory import clear_conversation
 
 from app.tools.employee_tools import (
     get_all_employees,
@@ -14,19 +17,32 @@ from app.agent.agent import run_agent
 
 if __name__ == "__main__":
 
+    # Create one session for this terminal conversation
+    session_id = str(uuid.uuid4())
+
     print("================================")
     print("  Employee Management AI Agent")
     print("================================")
 
+    print("Session ID:", session_id)
+    
     while True:
 
-        user_input = input("\nYou: ")
+        user_input = input("\nYou: ").strip()
 
         if user_input.lower() in ["exit", "quit"]:
             print("Agent stopped.")
             break
 
-        response = run_agent(user_input)
+        if user_input.lower() == "/reset":
+            clear_conversation(session_id)
+            print("Conversation history cleared.")
+            continue
+
+        if not user_input:
+            continue
+
+        response = run_agent(user_input, session_id)
 
         print("\nAgent:", response)
 
