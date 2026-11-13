@@ -7,6 +7,7 @@ from openai import OpenAI
 from app.agent.tools_schema import employee_tools
 from app.agent.tool_executor import execute_tool
 
+from app.agent.memory import get_conversation
 
 load_dotenv()
 
@@ -14,8 +15,6 @@ client = OpenAI(
     api_key=os.getenv("BLUESMINDS_API_KEY"),
     base_url=os.getenv("BLUESMINDS_BASE_URL")
 )
-
-
 
 SYSTEM_PROMPT = """
 You are an Employee Management AI Assistant.
@@ -50,21 +49,17 @@ Rules:
 """
 
 
-def run_agent(user_input):
+def run_agent(user_input, session_id):
 
-    messages = [
-        {
-            "role": "system",
-            "content": SYSTEM_PROMPT
-        },
-        {
-            "role": "user",
-            "content": user_input
-        }
-    ]
+    messages = get_conversation(session_id, SYSTEM_PROMPT)
+
+    #Add the new user Message
+    messages.append({
+        "role": "user",
+        "content": user_input
+    })
 
     # Agent execution loop
-    
     for i, n in enumerate(range(5)):
 
         print(f"\nCalling LLM... {{iteration: {i+1}}}")
@@ -83,7 +78,7 @@ def run_agent(user_input):
             message.model_dump(exclude_none=True)
         )
 
-        # If no tool call, return final answer
+        # Check whether LLM requested a tool
         if not message.tool_calls:
             return message.content
 
@@ -93,6 +88,7 @@ def run_agent(user_input):
             try:
                 result = execute_tool(tool_call)
 
+                # Preserve success/cancelled status
                 tool_result = {
                     "success": True,
                     "data": result
