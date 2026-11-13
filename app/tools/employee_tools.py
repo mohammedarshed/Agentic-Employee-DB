@@ -117,3 +117,53 @@ def get_employees_by_salary(min_salary):
             dict(row)
             for row in result.mappings().all()
         ]
+
+
+def add_employee(
+    first_name,
+    last_name,
+    email,
+    annual_salary,
+    hire_date,
+    department_id
+):
+
+    if annual_salary <= 0:
+        raise ValueError("Salary must be positive")
+
+    query = text("""
+        INSERT INTO employees (
+            first_name,
+            last_name,
+            email,
+            annual_salary,
+            hire_date,
+            department_id,
+            status
+        )
+        VALUES (
+            :first_name,
+            :last_name,
+            :email,
+            :annual_salary,
+            :hire_date,
+            :department_id,
+            'ACTIVE'
+        )
+    """)
+
+    with engine.begin() as connection:
+
+        result = connection.execute(
+            query,
+            {
+                "first_name": first_name,
+                "last_name": last_name,
+                "email": email,
+                "annual_salary": annual_salary,
+                "hire_date": hire_date,
+                "department_id": department_id
+            }
+        )
+
+        return result.lastrowid

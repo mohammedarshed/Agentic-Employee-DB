@@ -1,15 +1,34 @@
 import json
 
 from app.tools.employee_tools import (
-    get_employees_by_salary
+    get_all_employees,
+    get_employee_by_id,
+    get_employees_by_salary,
+    get_average_salary_by_department,
+    update_employee_salary,
+    add_employee
 )
+
+from app.tools.web_search import web_search
 
 
 # Map tool names to actual Python functions
 TOOL_REGISTRY = {
-    "get_employees_by_salary": get_employees_by_salary
+    "get_all_employees": get_all_employees,
+    "get_employee_by_id": get_employee_by_id,
+    "get_employees_by_salary": get_employees_by_salary,
+    "get_average_salary_by_department":
+        get_average_salary_by_department,
+    "update_employee_salary": update_employee_salary,
+    "add_employee": add_employee,
+    "web_search": web_search
 }
 
+# These tools modify database records
+WRITE_TOOLS = {
+    "update_employee_salary",
+    "add_employee"
+}
 
 def execute_tool(tool_call):
 
@@ -30,7 +49,27 @@ def execute_tool(tool_call):
     print(f"Arguments: {arguments}")
 
     # Execute actual Python function
-    print(f"******* Calling the MF tool requested by the LLM *******")
+    print(f"\nTool selected: {tool_name}")
+    print(f"Arguments: {arguments}")
+
+    # Human confirmation before write operations
+    if tool_name in WRITE_TOOLS:
+
+        print("\nWARNING: This operation modifies MySQL!")
+
+        confirmation = input(
+            "Do you want to proceed? (Y/N): "
+        ).strip().lower()
+
+        if confirmation != "y":
+            return {
+                "status": "cancelled",
+                "message": "User did not approve the operation."
+            }
+
     result = function(**arguments)
 
-    return result
+    return {
+        "status": "success",
+        "data": result
+    }

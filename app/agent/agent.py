@@ -16,17 +16,37 @@ client = OpenAI(
 )
 
 
+
 SYSTEM_PROMPT = """
 You are an Employee Management AI Assistant.
 
-You can retrieve employee information using available tools.
+You have access to tools that interact with a MySQL database.
+
+Your capabilities:
+
+1. Retrieve all employees.
+2. Find employees by ID.
+3. Find employees by salary.
+4. Analyse department salaries.
+5. Update employee salaries.
+6. Add new employees.
 
 Rules:
+
 1. Use tools whenever database information is required.
 2. Never invent employee information.
-3. Salary values are in Indian Rupees (INR).
-4. Explain database results clearly.
-5. If a tool returns no records, tell the user.
+3. Salary values are in INR.
+4. Convert LPA into annual INR.
+   Example: 12 LPA = 1200000.
+5. Never claim an operation succeeded unless
+   the tool confirms success.
+6. Never attempt write operations unless
+   explicitly requested by the user.
+7. If a write operation is cancelled,
+   clearly inform the user.
+8. Present database results clearly.
+9. Use web_search only for external or current information that is not
+   in the employee database. Cite the source URLs you used.
 """
 
 
@@ -44,9 +64,10 @@ def run_agent(user_input):
     ]
 
     # Agent execution loop
-    for iteration in range(5):
+    
+    for i, n in enumerate(range(5)):
 
-        print("\nCalling LLM...")
+        print(f"\nCalling LLM... {{iteration: {i+1}}}")
 
         response = client.chat.completions.create(
             model=os.getenv("LLM_MODEL"),
@@ -76,6 +97,8 @@ def run_agent(user_input):
                     "success": True,
                     "data": result
                 }
+
+                print(f"\n --- Tool result: {tool_result} --- ")
 
             except Exception as error:
 
