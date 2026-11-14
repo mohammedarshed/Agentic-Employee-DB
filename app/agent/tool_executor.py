@@ -32,44 +32,61 @@ WRITE_TOOLS = {
 
 def execute_tool(tool_call):
 
-    tool_name = tool_call.function.name
+    try:
+        tool_name = tool_call.function.name
 
-    # Find the corresponding Python function
-    function = TOOL_REGISTRY.get(tool_name)
+        # Find the corresponding Python function
+        function = TOOL_REGISTRY.get(tool_name)
 
-    if function is None:
-        raise ValueError(f"Unknown tool: {tool_name}")
+        if function is None:
+            raise ValueError(f"Unknown tool: {tool_name}")
 
-    # Extract arguments from LLM response
-    arguments = json.loads(
-        tool_call.function.arguments
-    )
+        # Extract arguments from LLM response
+        arguments = json.loads(
+            tool_call.function.arguments
+        )
 
-    print(f"\nExecuting tool: {tool_name}")
-    print(f"Arguments: {arguments}")
+        # Execute actual Python function
+        print(f"\nTool selected: {tool_name}")
+        print(f"Arguments: {arguments}")
 
-    # Execute actual Python function
-    print(f"\nTool selected: {tool_name}")
-    print(f"Arguments: {arguments}")
+        # Human confirmation before write operations
+        if tool_name in WRITE_TOOLS:
 
-    # Human confirmation before write operations
-    if tool_name in WRITE_TOOLS:
+            print("\nWARNING: This operation modifies MySQL!")
 
-        print("\nWARNING: This operation modifies MySQL!")
+            confirmation = input(
+                "Do you want to proceed? (Y/N): "
+            ).strip().lower()
 
-        confirmation = input(
-            "Do you want to proceed? (Y/N): "
-        ).strip().lower()
+            if confirmation != "y":
+                return create_tool_response(
+                    status="cancelled",
+                    message="User did not approve the operation."
+                )
 
-        if confirmation != "y":
-            return {
-                "status": "cancelled",
-                "message": "User did not approve the operation."
-            }
+        # Execute the tool function with the provided arguments
+        result = function(**arguments)
 
-    result = function(**arguments)
+        return create_tool_response(
+            status="success",
+            data=result
+        )
+    
+    except Exception as error:
+        print(f"Tool execution error: {error}")
+
+        # 8. Return standardized error response
+        return create_tool_response(
+            status="error",
+            message=str(error)
+        )
+
+# 3. Standard response builder
+def create_tool_response(status, data=None, message=None):
 
     return {
-        "status": "success",
-        "data": result
+        "status": status,
+        "data": data,
+        "message": message
     }

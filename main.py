@@ -17,21 +17,29 @@ from app.agent.agent import run_agent
 
 if __name__ == "__main__":
 
-    # Create one session for this terminal conversation
-    session_id = str(uuid.uuid4())
-
     print("================================")
     print("  Employee Management AI Agent")
     print("================================")
 
-    print("Session ID:", session_id)
-    
+    session_input = input(
+        "\nEnter existing Session ID "
+        "(or press Enter for a new session): "
+    ).strip()
+
+    if session_input:
+        session_id = session_input
+        print(f"\nResuming session: {session_id}")
+    else:
+        session_id = str(uuid.uuid4())
+        print(f"\nNew session created: {session_id}")
+        print("Session ID:", session_id)
+   
     while True:
 
         user_input = input("\nYou: ").strip()
 
         if user_input.lower() in ["exit", "quit"]:
-            print("Agent stopped.")
+            print("Session saved. Goodbye! : ", session_id)
             break
 
         if user_input.lower() == "/reset":

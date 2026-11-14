@@ -1,7 +1,7 @@
 from sqlalchemy import text
 from app.database.connection import engine
 
-
+#return type is a dictionary
 def get_all_employees():
 
     query = text("""
@@ -57,6 +57,7 @@ def update_employee_salary(employee_id, new_salary):
         WHERE employee_id = :employee_id
     """)
 
+    # Use a transaction to ensure atomicity
     with engine.begin() as connection:
 
         result = connection.execute(
