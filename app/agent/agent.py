@@ -9,7 +9,8 @@ from app.agent.tool_executor import execute_tool
 
 from app.agent.memory import (
     get_conversation,
-    save_message
+    save_message,
+    session_lock
 )
 
 load_dotenv()
@@ -54,61 +55,70 @@ Rules:
 
 def run_agent(user_input, session_id):
 
-    # Load conversation from MySQL
-    messages = get_conversation(session_id, SYSTEM_PROMPT)
+    try:
+        with session_lock(session_id):
+        
+            # Load conversation from MySQL
+            messages = get_conversation(session_id, SYSTEM_PROMPT)
 
-    #Add the new user Message
-    user_message = {
-        "role": "user",
-        "content": user_input
-    }
-
-    messages.append(user_message)
-    save_message(session_id, user_message)
-
-    # Agent execution loop
-    for i, n in enumerate(range(5)):
-
-        print(f"\nCalling LLM... {{iteration: {i+1}}}")
-
-        response = client.chat.completions.create(
-            model=os.getenv("LLM_MODEL"),
-            messages=messages,
-            tools=employee_tools,
-            tool_choice="auto"
-        )
-
-        message = response.choices[0].message
-
-        # Add LLM response to conversation
-        assistant_message = message.model_dump(
-            exclude_none=True
-        )
-
-        messages.append(assistant_message)
-
-        # Persist assistant response
-        save_message(session_id, assistant_message)
-
-        # Check whether LLM requested a tool > else return the message
-        if not message.tool_calls:
-            return message.content
-
-        # Execute requested tools
-        for tool_call in message.tool_calls:
-            tool_result = execute_tool(tool_call)
-
-            # Persist tool result
-            tool_message = {
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": json.dumps(
-                    tool_result,
-                    default=str
-                )
+            #Add the new user Message
+            user_message = {
+                "role": "user",
+                "content": user_input
             }
-            
-            messages.append(tool_message)
-            save_message(session_id, tool_message)
 
+            messages.append(user_message)
+            save_message(session_id, user_message)
+
+            # Agent execution loop
+            for i, n in enumerate(range(5)):
+
+                print(f"\nCalling LLM... {{iteration: {i+1}}}")
+
+                response = client.chat.completions.create(
+                    model=os.getenv("LLM_MODEL"),
+                    messages=messages,
+                    tools=employee_tools,
+                    tool_choice="auto"
+                )
+
+                message = response.choices[0].message
+
+                # Add LLM response to conversation
+                assistant_message = message.model_dump(
+                    exclude_none=True
+                )
+
+                messages.append(assistant_message)
+
+                # Persist assistant response
+                save_message(session_id, assistant_message)
+
+                # Check whether LLM requested a tool > else return the message
+                if not message.tool_calls:
+                    return message.content
+
+                # Execute requested tools
+                for tool_call in message.tool_calls:
+                    tool_result = execute_tool(tool_call)
+
+                    # Persist tool result
+                    tool_message = {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(
+                            tool_result,
+                            default=str
+                        )
+                    }
+                    
+                    messages.append(tool_message)
+                    save_message(session_id, tool_message)
+
+    except TimeoutError:
+        return (
+            "This session is currently busy. "
+            "Another request is being processed. "
+            "Please try again shortly."
+        )
     return "Agent stopped: maximum iterations reached."

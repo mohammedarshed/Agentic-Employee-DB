@@ -1,12 +1,61 @@
 import json
-
+import hashlib
+from contextlib import contextmanager
+from datetime import datetime
 from sqlalchemy import text
 from app.database.connection import engine
 
-# Stores conversations in application memory
 
-conversation_store = {}
+@contextmanager
+def session_lock(session_id, timeout=10):
+    """
+    Acquire a MySQL named lock for this conversation.
+    The lock is shared across application processes.
+    """
 
+    # MySQL lock names are limited to 64 characters.
+    lock_hash = hashlib.sha256(
+        session_id.encode("utf-8")
+    ).hexdigest()[:48]
+
+    lock_name = f"employee_agent_{lock_hash}"
+
+    # Keep this connection open while holding the named lock.
+    # Opening connection > Lock acquiring later
+    connection = engine.connect()
+
+    acquired = False
+
+    print(f"[{datetime.now():%M:%S.%f}] Attempting to acquire session lock: {lock_name}")
+    try:
+        result = connection.execute(
+            text("SELECT GET_LOCK(:lock_name, :timeout)"),
+            {
+                "lock_name": lock_name,
+                "timeout": timeout
+            }
+        )
+
+        # GET_LOCK() returns 1 means the lock was acquired, 0 means timeout, NULL means error
+        acquired = result.scalar() == 1
+        print(f"[{datetime.now():%M:%S.%f}] Session lock acquired: {acquired}")
+
+        if not acquired:
+            raise TimeoutError(
+                f"Could not acquire session lock within {timeout} seconds."
+            )
+
+        yield
+
+    finally:
+        try:
+            if acquired:
+                connection.execute(
+                    text("SELECT RELEASE_LOCK(:lock_name)"),
+                    {"lock_name": lock_name}
+                )
+        finally:
+            connection.close()
 
 def get_conversation(session_id, system_prompt):
 
@@ -77,19 +126,19 @@ def save_message(session_id, message):
             }
         )
 
-
 def clear_conversation(session_id):
 
-    with engine.begin() as connection:
+    with session_lock(session_id):
+        with engine.begin() as connection:
 
-        #cascading delete set in DB
-        connection.execute(
-            text("""
-                DELETE FROM conversations
-                WHERE session_id = :session_id
-            """),
-            {"session_id": session_id}
-        )
+            #cascading delete set in DB
+            connection.execute(
+                text("""
+                    DELETE FROM conversations
+                    WHERE session_id = :session_id
+                """),
+                {"session_id": session_id}
+            )
 
     print("Conversation memory cleared.")
 
